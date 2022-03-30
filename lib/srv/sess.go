@@ -80,6 +80,10 @@ type SessionRegistry struct {
 	// is closing.
 	sessions    map[rsession.ID]*session
 	sessionsMux sync.Mutex
+
+	// users is used for automatic user creation when new sessions are
+	// started
+	users HostUsers
 }
 
 type SessionRegistryConfig struct {
@@ -130,6 +134,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 			trace.Component: teleport.Component(teleport.ComponentSession, cfg.Srv.Component()),
 		}),
 		sessions: make(map[rsession.ID]*session),
+		users:    cfg.Srv.GetHostUsers(),
 	}, nil
 }
 
@@ -191,6 +196,27 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, ctx *ServerContext) error 
 
 	if ctx.JoinOnly {
 		return trace.AccessDenied("join-only mode was used to create this connection but attempted to create a new session.")
+	}
+
+	if ctx.srv.GetCreateHostUser() && s.users != nil {
+		ui, err := ctx.Identity.RoleSet.HostUsers(ctx.srv.GetInfo())
+		if err != nil && !trace.IsAccessDenied(err) {
+			log.Debug("Error while checking host users creation permission: ", err)
+		}
+
+		existsErr := s.users.UserExists(ctx.Identity.Login)
+		if trace.IsAccessDenied(err) && existsErr != nil {
+			return trace.WrapWithMessage(err, "Insufficient permission for host user creation")
+		}
+		userCloser, err := s.users.CreateUser(ctx.Identity.Login, ui)
+		if err != nil && !trace.IsAlreadyExists(err) {
+			log.Debugf("Error creating user %s: %s", ctx.Identity.Login, err)
+			return trace.Wrap(err)
+		}
+		if userCloser != nil {
+			ctx.AddCloser(userCloser)
+		}
+======= end
 	}
 
 	// session not found? need to create one. start by getting/generating an ID for it
