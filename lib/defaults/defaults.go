@@ -497,6 +497,8 @@ const (
 	ProtocolCockroachDB = "cockroachdb"
 	// ProtocolSQLServer is the Microsoft SQL Server database protocol.
 	ProtocolSQLServer = "sqlserver"
+
+	ProtocolSnowflake = "snowflake"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -506,6 +508,7 @@ var DatabaseProtocols = []string{
 	ProtocolMongoDB,
 	ProtocolCockroachDB,
 	ProtocolRedis,
+	ProtocolSnowflake,
 	ProtocolSQLServer,
 }
 
