@@ -24,7 +24,6 @@ import (
 	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/aws/aws-sdk-go/aws"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
@@ -36,12 +35,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-	"google.golang.org/grpc/credentials/insecure"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
 // CloudClients provides interface for obtaining cloud provider clients.
@@ -71,13 +71,13 @@ type CloudClients interface {
 // NewCloudClients returns a new instance of cloud clients retriever.
 func NewCloudClients() CloudClients {
 	return &cloudClients{
-		awsSessions: make(map[string]*awssession.Session),
+		awsSessions: libaws.SharedSessions(),
 	}
 }
 
 type cloudClients struct {
-	// awsSessions is a map of cached AWS sessions per region.
-	awsSessions map[string]*awssession.Session
+	// awsSessions is a helper to get AWS sessions.
+	awsSessions libaws.Sessions
 	// gcpIAM is the cached GCP IAM client.
 	gcpIAM *gcpcredentials.IamCredentialsClient
 	// gcpSQLAdmin is the cached GCP Cloud SQL Admin client.
@@ -90,13 +90,7 @@ type cloudClients struct {
 
 // GetAWSSession returns AWS session for the specified region.
 func (c *cloudClients) GetAWSSession(region string) (*awssession.Session, error) {
-	c.mtx.RLock()
-	if session, ok := c.awsSessions[region]; ok {
-		c.mtx.RUnlock()
-		return session, nil
-	}
-	c.mtx.RUnlock()
-	return c.initAWSSession(region)
+	return c.awsSessions.Get(region)
 }
 
 // GetAWSRDSClient returns AWS RDS client for the specified region.
@@ -186,26 +180,6 @@ func (c *cloudClients) Close() (err error) {
 		c.gcpIAM = nil
 	}
 	return trace.Wrap(err)
-}
-
-func (c *cloudClients) initAWSSession(region string) (*awssession.Session, error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	if session, ok := c.awsSessions[region]; ok { // If some other thead already got here first.
-		return session, nil
-	}
-	logrus.Debugf("Initializing AWS session for region %v.", region)
-	session, err := awssession.NewSessionWithOptions(awssession.Options{
-		SharedConfigState: awssession.SharedConfigEnable,
-		Config: aws.Config{
-			Region: aws.String(region),
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	c.awsSessions[region] = session
-	return session, nil
 }
 
 func (c *cloudClients) initGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {

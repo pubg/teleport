@@ -89,3 +89,8 @@ func Test_LinearRetryMax(t *testing.T) {
 		})
 	}
 }
+
+func TestCryptoRandomHex(t *testing.T) {
+	t.Log(CryptoRandomHex(6))
+	t.Log(CryptoRandomHex(7))
+}

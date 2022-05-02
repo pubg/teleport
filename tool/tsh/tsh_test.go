@@ -1561,7 +1561,8 @@ func TestSerializeDatabases(t *testing.T) {
         "rds": {
           "iam_auth": false
         },
-        "elasticache": {}
+        "elasticache": {},
+        "secret_store": {}
       },
       "mysql": {},
       "gcp": {},
@@ -1582,7 +1583,8 @@ func TestSerializeDatabases(t *testing.T) {
         "rds": {
           "iam_auth": false
         },
-        "elasticache": {}
+        "elasticache": {},
+        "secret_store": {}
       }
     }
   }]
