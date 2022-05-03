@@ -944,12 +944,21 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AuthType:         constants.Local,
 		}
 	} else {
+		authType := cap.GetType()
+		var localConnectorName string
+
+		if authType == constants.Local {
+			localConnectorName = cap.GetConnectorName()
+		}
+
 		authSettings = webclient.WebConfigAuthSettings{
-			Providers:         authProviders,
-			SecondFactor:      cap.GetSecondFactor(),
-			LocalAuthEnabled:  cap.GetAllowLocalAuth(),
-			AuthType:          cap.GetType(),
-			PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+			Providers:          authProviders,
+			SecondFactor:       cap.GetSecondFactor(),
+			LocalAuthEnabled:   cap.GetAllowLocalAuth(),
+			AllowPasswordless:  cap.GetAllowPasswordless(),
+			AuthType:           authType,
+			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
+			LocalConnectorName: localConnectorName,
 		}
 	}
 
@@ -1544,7 +1553,7 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 		return nil, trace.BadParameter("Failed to renew session: fields 'AccessRequestID' and 'Switchback' cannot be both set")
 	}
 
-	newSession, err := ctx.extendWebSession(req.AccessRequestID, req.Switchback)
+	newSession, err := ctx.extendWebSession(r.Context(), req.AccessRequestID, req.Switchback)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1570,6 +1579,8 @@ type changeUserAuthenticationRequest struct {
 	SecondFactorToken string `json:"second_factor_token"`
 	// TokenID is the ID of a reset or invite token.
 	TokenID string `json:"token"`
+	// DeviceName is the name of new mfa or passwordless device.
+	DeviceName string `json:"deviceName"`
 	// Password is user password string converted to bytes.
 	Password []byte `json:"password"`
 	// WebauthnCreationResponse is the signed credential creation response.
@@ -1583,8 +1594,9 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	protoReq := &proto.ChangeUserAuthenticationRequest{
-		TokenID:     req.TokenID,
-		NewPassword: req.Password,
+		TokenID:       req.TokenID,
+		NewPassword:   req.Password,
+		NewDeviceName: req.DeviceName,
 	}
 	switch {
 	case req.WebauthnCreationResponse != nil:
@@ -1866,13 +1878,21 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
+
+	resp, err := listResources(clt, r, types.KindNode)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resp.Resources).AsServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items: ui.MakeServers(site.GetName(), servers),
+		Items:      ui.MakeServers(site.GetName(), servers),
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 
@@ -1894,8 +1914,8 @@ func (h *Handler) siteNodeConnect(
 	r *http.Request,
 	p httprouter.Params,
 	ctx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
-
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	q := r.URL.Query()
 	params := q.Get("params")
 	if params == "" {
@@ -1926,12 +1946,12 @@ func (h *Handler) siteNodeConnect(
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
 
-	clt, err := ctx.GetUserClient(site)
+	watcher, err := site.NodeWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	term, err := NewTerminal(r.Context(), *req, clt, ctx)
+	term, err := NewTerminal(*req, watcher, ctx)
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
@@ -1955,11 +1975,6 @@ type siteSessionGenerateResponse struct {
 // siteSessionCreate generates a new site session that can be used by UI
 // The ServerID from request can be in the form of hostname, uuid, or ip address.
 func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	var req *siteSessionGenerateReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -1967,12 +1982,12 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 
 	namespace := apidefaults.Namespace
 	if req.Session.ServerID != "" {
-		servers, err := clt.GetNodes(r.Context(), namespace)
+		watcher, err := site.NodeWatcher()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		hostname, _, err := resolveServerHostPort(req.Session.ServerID, servers)
+		hostname, _, err := resolveServerHostPort(req.Session.ServerID, watcher)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2719,13 +2734,27 @@ type ssoRequestParams struct {
 }
 
 func parseSSORequestParams(r *http.Request) (*ssoRequestParams, error) {
-	query := r.URL.Query()
-
-	clientRedirectURL := query.Get("redirect_url")
+	// Manually grab the value from query param "redirect_url".
+	//
+	// The "redirect_url" param can contain its own query params such as in
+	// "https://localhost/login?connector_id=github&redirect_url=https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel&sort=hostname:asc",
+	// which would be incorrectly parsed with the standard method.
+	// For example a call to r.URL.Query().Get("redirect_url") in the example above would return
+	// "https://localhost:8080/web/cluster/im-a-cluster-name/nodes?search=tunnel",
+	// as it would take the "&sort=hostname:asc" to be a separate query param.
+	//
+	// This logic assumes that anything coming after "redirect_url" is part of
+	// the redirect URL.
+	splittedRawQuery := strings.Split(r.URL.RawQuery, "&redirect_url=")
+	var clientRedirectURL string
+	if len(splittedRawQuery) > 1 {
+		clientRedirectURL, _ = url.QueryUnescape(splittedRawQuery[1])
+	}
 	if clientRedirectURL == "" {
 		return nil, trace.BadParameter("missing redirect_url query parameter")
 	}
 
+	query := r.URL.Query()
 	connectorID := query.Get("connector_id")
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
