@@ -19,7 +19,7 @@ use iso7816::command::Command;
 use iso7816::response::Status;
 use iso7816_tlv::ber::{Tag, Tlv, Value};
 use rdp::model::error::*;
-use rsa::pkcs1::FromRsaPrivateKey;
+use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::{BigUint, PublicKeyParts, RsaPrivateKey};
 use std::convert::TryFrom;
 use std::io::{Cursor, Read};

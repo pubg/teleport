@@ -314,6 +314,59 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
   ![Disable Require](../../img/desktop-access/disable.png)
 </Figure>
 
+### Configure certificate for RDP connections
+
+<Admonition type="note" title="Secure Cipher Suites">
+  Teleport's RDP client supports only secure algorithms
+  for making TLS connections, so we have to configure a Windows server
+  to support those cipher suites as well.
+</Admonition>
+
+
+In this step we'll create a new certificate template that uses
+elliptic curve cryptography, and then configure our GPO
+to use the newly created template to issue certificates used for Remote Desktop connections.
+
+# Create a certificate template
+
+1. Begin by navigating to:
+```
+Start > Control Panel > Administrative Tools > Certificate Authority
+```
+to open the CA Microsoft Management Console (MMC) GUI.
+2. Open your CA computer and right-click on `Certificate Templates`, then select `Manage`.
+3. Find `Computer` template on the list, right-click on it, then select `Duplicate Template`.
+4. In the `Compatibility` tab change `Certification Authority` to `Windows Server 2012 R2` and click `OK`.
+In the same tab change `Certificate recipient` to `Windows Server 2012 R2` and click `OK`.
+5. Go to `General` tab and change `Template display name` to `RemoteDesktopAccess`. Make sure `Template name` is also `RemoteDesktopAccess`.
+6. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`, then `Algorithm name` to `ECDH_P384`. Also, change `Request hash` to `SHA384`.
+7. Next, in the `Extensions` tab select `Application Polices` and click `Edit` button.
+8. Remove all entries from the list.
+9. Click `Add…` button, then `New…`. Set the value of `Name` to `Remote Desktop Authentication`. Change the object identifier to `1.3.6.1.4.1.311.54.1.2.` and click `OK`.
+10. From the application policies list select `Remote Desktop Authentication` and click `OK`.
+11. Go to `Security` tab, select `Domain Controllers` and give the group `Read` and `Enroll` permissions.
+12. Finally, create template by clicking `OK`
+13. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
+```
+New > Certificate Template to Issue
+```
+Select `RemoteDesktopAccess` and click `OK`.
+
+# Update GPO to use a new certificate template
+
+In the group policy editor for `Teleport Access Policy`, select:
+
+```
+Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
+```
+
+Right-click on `Server authentication certificate template`, `Edit`, then select `Enabled` and fill `Certificate Template Name` with `RemoteDesktopAccess`.
+
+<Figure align="left" bordered caption="RDP Certificate Template">
+  ![RDP Certificate Template](../../img/desktop-access/rdp-certificate-template.png)
+</Figure>
+
+
 ### Ensure your GPO is updated
 
 If you have not done so already, ensure your GPO is updated by opening a PowerShell prompt and running:
