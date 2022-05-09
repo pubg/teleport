@@ -329,20 +329,20 @@ to use the newly created template to issue certificates used for Remote Desktop 
 
 # Create a certificate template
 
-In this step we will create a certificate template that is using elliptic curve P-384 and is using SHA384 as an signature algorithim.
+In this step we create a certificate template that uses elliptic curve P-384 and uses SHA384 as the signature algorithm.
 
 
 1. Open the Microsoft Management Console (MMC)
 
-```
-Start > Control Panel > Administrative Tools > Certificate Authority
-```
+    ```
+    Start > Control Panel > Administrative Tools > Certificate Authority
+    ```
 
 2. Open your CA computer and right-click on `Certificate Templates`, then select `Manage`.
 3. Find the `Computer` template on the list, right-click on it, then select `Duplicate Template`.
 4. In the `Compatibility` tab change `Certification Authority` to `Windows Server 2012 R2` and click `OK`.
 
-  In the same tab change `Certificate recipient` to `Windows Server 2012 R2` and click `OK`.
+    In the same tab change `Certificate recipient` to `Windows Server 2012 R2` and click `OK`.
  
 5. Go to `General` tab and change `Template display name` to `RemoteDesktopAccess`. Make sure `Template name` is also `RemoteDesktopAccess`.
 6. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`, then `Algorithm name` to `ECDH_P384`. Also, change `Request hash` to `SHA384`.
@@ -352,11 +352,11 @@ Start > Control Panel > Administrative Tools > Certificate Authority
 10. Finally, create template by clicking `OK`
 11. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
 
-  ```
-  New > Certificate Template to Issue
-  ```
+    ```
+    New > Certificate Template to Issue
+    ```
 
-  Select `RemoteDesktopAccess` and click `OK`.
+    Select `RemoteDesktopAccess` and click `OK`.
 
 # Update GPO to use a new certificate template
 

@@ -858,7 +858,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	if cfg.WindowsDesktop.Enabled {
 		// FedRAMP/FIPS is not supported for Desktop Access. Desktop Access uses
 		// Rust for the underlying RDP protocol implementation and smart card
-		// authnentication. Returns an error if the user attempts to start Desktop
+		// authentication. Returns an error if the user attempts to start Desktop
 		// Access in FedRAMP/RIPS mode for now until we can ensure that the crypto
 		// used by this feature is compliant.
 		if cfg.FIPS {
