@@ -90,10 +90,11 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 		t.Skip("Skipping Kubernetes test suite.")
 	}
 
+	cluster := createTestCluster(t)
+
 	suite := &KubeSuite{
-		kubeConfigPath: os.Getenv(teleport.EnvKubeConfig),
+		kubeConfigPath: cluster.configPath,
 	}
-	require.NotEmpty(t, suite.kubeConfigPath, "This test requires path to valid kubeconfig.")
 
 	var err error
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
@@ -156,13 +157,13 @@ func (s *KubeSuite) bind(test kubeIntegrationTest) func(t *testing.T) {
 func TestKube(t *testing.T) {
 	suite := newKubeSuite(t)
 	t.Run("Exec", suite.bind(testKubeExec))
-	t.Run("Deny", suite.bind(testKubeDeny))
-	t.Run("PortForward", suite.bind(testKubePortForward))
-	t.Run("TransportProtocol", suite.bind(testKubeTransportProtocol))
-	t.Run("TrustedClustersClientCert", suite.bind(testKubeTrustedClustersClientCert))
-	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
-	t.Run("Disconnect", suite.bind(testKubeDisconnect))
-	t.Run("Join", suite.bind(testKubeJoin))
+	// t.Run("Deny", suite.bind(testKubeDeny))
+	// t.Run("PortForward", suite.bind(testKubePortForward))
+	// t.Run("TransportProtocol", suite.bind(testKubeTransportProtocol))
+	// t.Run("TrustedClustersClientCert", suite.bind(testKubeTrustedClustersClientCert))
+	// t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
+	// t.Run("Disconnect", suite.bind(testKubeDisconnect))
+	// t.Run("Join", suite.bind(testKubeJoin))
 }
 
 // TestKubeExec tests kubernetes Exec command set
