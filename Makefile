@@ -607,7 +607,7 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	# 	| tee $(TEST_LOG_DIR)/integration.json \
 	# 	| $(RENDER_TESTS) -report-by test
 
-	$(CGOFLAG) go test -timeout 30m -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS)
+	TEST_KUBE=1 $(CGOFLAG) go test -timeout 30m -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS)
 #
 # Integration tests which need to be run as root in order to complete successfully
 # are run separately to all other integration tests. Need a TTY to work.
