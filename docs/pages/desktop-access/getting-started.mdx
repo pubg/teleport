@@ -327,38 +327,35 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
 In this step we'll create a new certificate template that uses elliptic curve cryptography, and then configure our GPO
 to use the newly created template to issue certificates used for Remote Desktop connections.
 
-# Create a certificate template
+## Create a certificate template
 
 In this step we create a certificate template that uses elliptic curve P-384 and uses SHA384 as the signature algorithm.
 
 
 1. Open the Microsoft Management Console (MMC)
 
-    ```
-    Start > Control Panel > Administrative Tools > Certificate Authority
-    ```
+```text
+Start > Control Panel > Administrative Tools > Certificate Authority
+```
 
 2. Open your CA computer and right-click on `Certificate Templates`, then select `Manage`.
 3. Find the `Computer` template on the list, right-click on it, then select `Duplicate Template`.
 4. In the `Compatibility` tab change `Certification Authority` to `Windows Server 2012 R2` and click `OK`.
+5. In the same tab change `Certificate recipient` to `Windows Server 2012 R2` and click `OK`.
+6. Go to `General` tab and change `Template display name` to `RemoteDesktopAccess`. Make sure `Template name` is also `RemoteDesktopAccess`.
+7. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`, then `Algorithm name` to `ECDH_P384`. Also, change `Request hash` to `SHA384`.
+8. Next, in the `Extensions` tab select `Application Polices` and click `Edit` button.
+9. Remove all entries from the list.
+10. Go to `Security` tab, select `Domain Controllers` and give the group `Read` and `Enroll` permissions.
+11. Finally, create template by clicking `OK`
+12. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
 
-    In the same tab change `Certificate recipient` to `Windows Server 2012 R2` and click `OK`.
- 
-5. Go to `General` tab and change `Template display name` to `RemoteDesktopAccess`. Make sure `Template name` is also `RemoteDesktopAccess`.
-6. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`, then `Algorithm name` to `ECDH_P384`. Also, change `Request hash` to `SHA384`.
-7. Next, in the `Extensions` tab select `Application Polices` and click `Edit` button.
-8. Remove all entries from the list.
-9. Go to `Security` tab, select `Domain Controllers` and give the group `Read` and `Enroll` permissions.
-10. Finally, create template by clicking `OK`
-11. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
+```text
+New > Certificate Template to Issue
+```
+Select `RemoteDesktopAccess` and click `OK`.
 
-    ```
-    New > Certificate Template to Issue
-    ```
-
-    Select `RemoteDesktopAccess` and click `OK`.
-
-# Update GPO to use a new certificate template
+## Update GPO to use a new certificate template
 
 In the group policy editor for `Teleport Access Policy`, select:
 
